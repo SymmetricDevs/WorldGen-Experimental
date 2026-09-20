@@ -10,6 +10,7 @@ public class RenderComponent extends JPanel {
     private SimplexOctaveGen2D gen3;
     private double zoom;
     private long seed;
+    private final double height_cutoff = 0.03;
     public RenderComponent(long seed) {
         this.seed = seed;
         zoom = 100;
@@ -58,15 +59,14 @@ public class RenderComponent extends JPanel {
         BufferedImage finalim = new BufferedImage(600, 600, BufferedImage.TYPE_INT_RGB);
         for (int x = 0; x < 600; x++) {
             for (int y = 0; y < 600; y++) {
-                double height = kernel(x, y, imageinit) + geo(x, y, 0) + geo(x, y, 1) * 0.25;
-                if (height >= 0.31) {
-                    finalim.setRGB(x, y, new Color(140+(int)(height * 5), 200, 60).getRGB());
+                double height = kernel(x, y, imageinit) + geo(x, y, 0) * 0.5 + geo(x, y, 1) * 0.25;
+                if (height >= 0.38) {
+                    finalim.setRGB(x, y, new Color(120+(int)(height * 4.5), 200, 60).getRGB());
                 } else {
-                    finalim.setRGB(x, y, new Color(40, 150, 210).getRGB());
+                    finalim.setRGB(x, y, new Color(40, 130 +  (int)(height * 5), 180 + (int)(height * 3.0)).getRGB());
                 }
             }
         }
-        System.out.println("done");
         g.drawImage(finalim, 0, 0, 600, 600, this);
     }
 
@@ -75,11 +75,14 @@ public class RenderComponent extends JPanel {
         double dy = gen3.base(new Vec2d(-x, y));
         Vec2d res = gen2.base(new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom));
         int dz = (int)gen3.base(new Vec2d(-y, x));
-        double test = gen.base(new Vec2d(res.x + res.y, res.x - res.y).times(0.15));
-        if (test >= 0.06) {
-            return dz+0.10;
+        //int hash = highEntropyHash(Math.pow(res.x + 1, 5)/(Math.abs(res.y*res.x + res.x - res.y) + 1));
+
+        double test = gen.base(new Vec2d(res.x + dx/4, res.y + dy/4).times(0.01));
+        //System.out.println(Integer.remainderUnsigned(hash, 11));
+        if (test >= height_cutoff) {
+            return dz * 1.5 + 2.0;
         } else {
-            return -0.39;
+            return dz * 0.8 - 9.5;
         }
     }
 
@@ -90,24 +93,29 @@ public class RenderComponent extends JPanel {
             for (int j = -(int)(150.0/zoom); j < (int)(300.0/zoom); j++) {
                 int newx = x + i;
                 int newy = y + j;
-                double dx = gen3.base(new Vec2d(newx, newy));
-                double dy = gen3.base(new Vec2d(-newx, newy));
-                Vec2d continent = gen2.base(new Vec2d((newx - 300 + dx) / zoom, (newy - 300 + dy) / zoom));
-                Vec2d velocity = this.getPlateVelocity(continent, x, y, stage);
+                double dx = gen3.base(new Vec2d(newx, newy)) * 0.5;
+                double dy = gen3.base(new Vec2d(-newx, newy)) * 0.5;
+                Vec2d core = new Vec2d((newx - 300 + dx) / zoom, (newy - 300 + dy) / zoom);
+                Vec2d res = gen2.base(core);
+                Vec2d velocity = this.getPlateVelocity(res, core.x, core.y, stage);
 
                 accu -= velocity.dot(new Vec2d(i, j)) * 1/Math.sqrt((double)(i*i + j*j) + 1.8) + 0.13;
                 divis += 1/Math.sqrt((double)(i*i + j*j) + 1.8);
             }
         }
+
         double dx = gen3.base(new Vec2d(x, y));
         double dy = gen3.base(new Vec2d(-x, y));
-        Vec2d res = gen2.base(new Vec2d((x - 300 + dx) / zoom, (x - 300 + dy) / zoom));
-        double test = gen.base(new Vec2d(res.x + res.y, res.x - res.y).times(0.15));
-        if (test >= 0.06) {
-            return accu/divis - 0.32;
-        } else {
-            return accu/divis-0.40;
+        Vec2d core = new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom);
+        Vec2d res = gen2.base(core);
+        Vec2d coreContinent = gen2.sample(core, 0);
+        Vec2d coreContinentVelocity = this.getPlateVelocity(res, coreContinent.x, coreContinent.y, stage);
+        double test = gen.base(new Vec2d(coreContinent.x, coreContinent.y).times(0.01));
+        if (test >= height_cutoff) {
+            double subduction = Math.max(0, gen2.edgeDir(core).dot(coreContinentVelocity) * 0.05 / zoom);
+            return accu/divis + 0.05 + subduction;
         }
+        return accu/divis + 0.1;
     }
 
     public double kernel(int x, int y, BufferedImage img) {
