@@ -53,6 +53,10 @@ public class RenderComponent extends JPanel {
                         gen.base(new Vec2d(-x * 3 + continent.x + stage, y * 3 + continent.y + stage))).times(2));
     }
 
+    public static double sigmoid(double x) {
+        return 1/(1+Math.exp(-x));
+    }
+
     public void paintComponent(Graphics g) {
         double[] imageinit = new double[width * width];
         for (int x = 0; x < width; x++) {
@@ -78,7 +82,10 @@ public class RenderComponent extends JPanel {
                 try {
                     if (height >= ground_cut) {
                         if (fill <= 0.1) {
-                            finalim.setRGB(x, y, new Color(120 + (int) (height * 4.5), 200, 60).getRGB());
+                            //finalim.setRGB(x, y, new Color((int)(255 * sigmoid(height * 0.09 + -0.6)),
+                            //        (int)(240 * sigmoid(height * 0.065 + 1.2)),
+                            //        (int)(200 * sigmoid(height * 0.04 - 1.5))).getRGB());
+                            finalim.setRGB(x, y, new Color(0,0,((height % 4 < 0.3) ? 255 : 0)).getRGB());
                         } else {
                             finalim.setRGB(x, y, new Color(0, 255, 255).getRGB());
                         }

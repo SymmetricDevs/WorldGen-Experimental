@@ -12,8 +12,8 @@ public class WorleyGen2D {
     public Vec2d sample(Vec2d pos, int index) {
         int hashx = Double.hashCode(pos.x * seed * 1/(Math.abs(index) + 1) + pos.y / seed) * (int)seed/2;
         int hashy = Double.hashCode(pos.y * seed + pos.x / seed) * (int)(3 * seed + 1);
-        return new Vec2d((double)hashx/Math.pow(Math.pow(hashy, 3) + 1, 0.33) % 1,
-                (double)hashy/Math.pow(Math.pow(hashx, 3) + 1, 0.33) % 1).plus(pos);
+        return new Vec2d((double)hashx/Math.cbrt(hashy * hashy * hashy + 1) % 1,
+                (double)hashy/Math.cbrt(hashx * hashx * hashx + 1) % 1).plus(pos);
     }
 
     public Vec2d base(Vec2d pos) {

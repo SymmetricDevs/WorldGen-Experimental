@@ -29,6 +29,14 @@ public class SimplexGen2D implements IGenBase {
         return (((h&1) == 1)? -u : u) + (((h&2) == 2)? -2.0 *v  : 2.0 * v);
     }
 
+    public static double pow(double x, int times) {
+        double ret = 1;
+        for (int i = 0; i < times; i++) {
+            ret *= x;
+        }
+        return ret;
+    }
+
     public double base(Vec2d pos) {
         double x = pos.x;
         double y = pos.y;
@@ -62,9 +70,9 @@ public class SimplexGen2D implements IGenBase {
 
         int jj = fast_floor(transformed.y) & 0xff;
 
-        double c1 = Math.pow(Math.max(0,0.5 - p1.distsq(pos)), 4) * grad(perm[(ii+perm[jj]) & 0xff], p1.minus(pos));
-        double c2 = Math.pow(Math.max(0,0.5 - p2.distsq(pos)), 4) * grad(perm[(ii+i_1+perm[(jj+j_1) & 0xff]) & 0xff], p2.minus(pos));
-        double c3 = Math.pow(Math.max(0,0.5 - p3.distsq(pos)), 4) * grad(perm[(ii+1+perm[(jj+1) & 0xff]) & 0xff], p3.minus(pos));
+        double c1 = pow(Math.max(0,0.5 - p1.distsq(pos)), 4) * grad(perm[(ii+perm[jj]) & 0xff], p1.minus(pos));
+        double c2 = pow(Math.max(0,0.5 - p2.distsq(pos)), 4) * grad(perm[(ii+i_1+perm[(jj+j_1) & 0xff]) & 0xff], p2.minus(pos));
+        double c3 = pow(Math.max(0,0.5 - p3.distsq(pos)), 4) * grad(perm[(ii+1+perm[(jj+1) & 0xff]) & 0xff], p3.minus(pos));
 
         return 20.0*(c1+c2+c3);
     }
