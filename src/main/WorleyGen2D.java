@@ -1,6 +1,7 @@
 package main;
 public class WorleyGen2D {
     private long seed = 0;
+
     public WorleyGen2D(long seed) {
         this.seed = seed;
     }
@@ -9,11 +10,27 @@ public class WorleyGen2D {
         return (x < y) ? y-1 : y;
     }
 
+    // Fast 64-bit mix function (SplitMix64 variant)
+    public static long mix64(long z) {
+        z = (z ^ (z >>> 30)) * 0xbf58476d1ce4e5b9L;
+        z = (z ^ (z >>> 27)) * 0x94d049bb133111ebL;
+        return z ^ (z >>> 31);
+    }
+
+    // Hash a long input to a double in [-1.0, 1.0]
+    public static double hashToDouble(double input) {
+        long mixed = mix64(Double.doubleToLongBits(input));
+        // Map top 53 bits to a [0, 1) double using bit manipulation
+        long upper53 = mixed >>> 11;
+        double d = upper53 * (1.0 / (1L << 53)); // value in [0, 1)
+        // Scale and shift from [0, 1) to [-1, 1] roughly
+        return d * 2.0 - 1.0;
+    }
+
     public Vec2d sample(Vec2d pos, int index) {
-        int hashx = Double.hashCode(pos.x() * seed * index + pos.y() / seed) * (int)seed/2;
-        int hashy = Double.hashCode(pos.y() * seed + pos.x() / seed) * (int)(3 * seed + 1);
-        return new Vec2d((double)hashx/Math.cbrt(hashy * hashy * hashy + 1) % 1,
-                (double)hashy/Math.cbrt(hashx * hashx * hashx + 1) % 1).plus(pos);
+        double hashx = hashToDouble(pos.x() * seed * 1 / (Math.abs(index) + 1) + pos.y() / seed);
+        double hashy = hashToDouble(pos.y() * seed + pos.x() / seed);
+        return new Vec2d(hashx, hashy).plus(pos);
     }
 
     public Vec2d base(Vec2d pos) {
@@ -21,8 +38,8 @@ public class WorleyGen2D {
         double accu = Double.MAX_VALUE;
         int bestx = cellx;
         int besty = celly;
-        for (int i = -2; i < 3; i++) {
-            for (int j = -2; j < 3; j++) {
+        for (int i = -1; i < 2; i++) {
+            for (int j = -1; j < 2; j++) {
                 Vec2d real = new Vec2d(cellx + i, celly + j);
                 Vec2d res = sample(real, 0);
                 Vec2d res2 = sample(real, 1);
