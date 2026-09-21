@@ -74,13 +74,13 @@ public class RenderComponent extends JPanel {
         double dx = gen3.base(new Vec2d(x, y));
         double dy = gen3.base(new Vec2d(-x, y));
         Vec2d res = gen2.base(new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom));
-        int dz = (int)gen3.base(new Vec2d(-y, x));
+        int dz = (int)(gen3.base(new Vec2d(-y/4, x/4)) + 0.75 * gen3.base(new Vec2d(-x, y+3)));
         //int hash = highEntropyHash(Math.pow(res.x + 1, 5)/(Math.abs(res.y*res.x + res.x - res.y) + 1));
 
         double test = gen.base(new Vec2d(res.x + dx/4, res.y + dy/4).times(0.01));
         //System.out.println(Integer.remainderUnsigned(hash, 11));
         if (test >= height_cutoff) {
-            return dz * 1.5 + 2.0;
+            return dz * 1.3 + 2.0;
         } else {
             return dz * 0.8 - 9.5;
         }
@@ -112,6 +112,7 @@ public class RenderComponent extends JPanel {
         Vec2d coreContinentVelocity = this.getPlateVelocity(res, coreContinent.x, coreContinent.y, stage);
         double test = gen.base(new Vec2d(coreContinent.x, coreContinent.y).times(0.01));
         if (test >= height_cutoff) {
+            // problem: how to make this dependent on the other continent's velocity without wasting time?
             double subduction = Math.max(0, gen2.edgeDir(core).dot(coreContinentVelocity) * 0.05 / zoom);
             return accu/divis + 0.05 + subduction;
         }
