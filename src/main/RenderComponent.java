@@ -3,6 +3,7 @@ package main;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.util.*;
 
 public class RenderComponent extends JPanel {
     private SimplexGen2D gen;
@@ -11,6 +12,10 @@ public class RenderComponent extends JPanel {
     private double zoom;
     private long seed;
     private final double height_cutoff = 0.03;
+    private final double ground_cut = 0.38;
+    private final int width = 600;
+    private final Vec2d[] neighbors = {new Vec2d(1,0), new Vec2d(1,1), new Vec2d(0,1), new Vec2d(0, -1),
+            new Vec2d(-1, -1), new Vec2d(-1, 0), new Vec2d(-1, 1), new Vec2d(1, -1)};
     public RenderComponent(long seed) {
         this.seed = seed;
         zoom = 100;
@@ -49,40 +54,138 @@ public class RenderComponent extends JPanel {
     }
 
     public void paintComponent(Graphics g) {
-        BufferedImage imageinit = new BufferedImage(600, 600, BufferedImage.TYPE_INT_ARGB);
-        for (int x = 0; x < 600; x++) {
-            for (int y = 0; y < 600; y++) {
+        double[] imageinit = new double[width * width];
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < width; y++) {
                 double height = getBase(x,y);
-                imageinit.setRGB(x, y, (int) height*2048);
+                imageinit[x + width*y] = height;
             }
         }
-        BufferedImage finalim = new BufferedImage(600, 600, BufferedImage.TYPE_INT_RGB);
-        for (int x = 0; x < 600; x++) {
-            for (int y = 0; y < 600; y++) {
-                double height = kernel(x, y, imageinit) + geo(x, y, 0) * 0.5 + geo(x, y, 1) * 0.25;
-                if (height >= 0.38) {
-                    finalim.setRGB(x, y, new Color(120+(int)(height * 4.5), 200, 60).getRGB());
-                } else {
-                    finalim.setRGB(x, y, new Color(40, 130 +  (int)(height * 5), 180 + (int)(height * 3.0)).getRGB());
+        double[] secondim = new double[width*width];
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < width; y++) {
+                double height = getFundamentalHeight(x, y, imageinit);
+                secondim[x + width*y] = height;
+            }
+        }
+        double[] fillim = new double[width*width];
+        getDepressionFill(secondim, imageinit, fillim);
+        BufferedImage finalim = new BufferedImage(width, width, BufferedImage.TYPE_INT_RGB);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < width; y++) {
+                double height = secondim[x + width*y];
+                double fill = fillim[x + width*y] - height;
+                try {
+                    if (height >= ground_cut) {
+                        if (fill <= 0.1) {
+                            finalim.setRGB(x, y, new Color(120 + (int) (height * 4.5), 200, 60).getRGB());
+                        } else {
+                            finalim.setRGB(x, y, new Color(0, 255, 255).getRGB());
+                        }
+                    } else {
+                        finalim.setRGB(x, y, new Color(40, 130 + (int) (height * 3.0), 180 + (int) (height * 2.5)).getRGB());
+                    }
+                } catch (Exception e) {
+                    System.out.println(height);
                 }
             }
         }
-        g.drawImage(finalim, 0, 0, 600, 600, this);
+        g.drawImage(finalim, 0, 0, width, width, this);
+    }
+
+    public class FillEntry extends AbstractMap.SimpleEntry<AbstractMap.SimpleEntry<Integer, Integer>, Double> {
+        public FillEntry(AbstractMap.SimpleEntry<Integer, Integer> key, Double value) {
+            super(key, value);
+        }
+        public FillEntry(int key1, int key2, double value) {
+            super(new AbstractMap.SimpleEntry<>(key1, key2), value);
+        }
+        public int getX() {
+            return this.getKey().getKey();
+        }
+        public int getY() {
+            return this.getKey().getValue();
+        }
+        public double getPrior() {
+            return this.getValue();
+        }
+    }
+
+    private void getDepressionFill(double[] image, double[] prekernel, double[] out) {
+        PriorityQueue<FillEntry> open = new PriorityQueue<>(Comparator.comparingDouble(FillEntry::getPrior));
+        boolean[] closed = new boolean[width * width];
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < width; y++) {
+                if (image[x + width*y] >= ground_cut) {
+                    boolean edge = false;
+                    for (Vec2d change : neighbors) {
+                        int newx = x + (int) change.x;
+                        int newy = y + (int) change.y;
+                        double height;
+                        if (newx >= 0 && newy >= 0 && newx < width && newy < width) {
+                            height = image[newx + width*newy];
+                        } else {
+                            height = getFundamentalHeight(newx, newy, prekernel);
+                        }
+                        if (height < ground_cut) {
+                            edge = true;
+                            break;
+                        }
+                    }
+                    if (edge) {
+                        open.add(new FillEntry(x, y, image[x + width*y]));
+                        closed[x + width*y] = true;
+                    } else {
+                        closed[x + width*y] = false;
+                    }
+                } else {
+                    closed[x + width*y] = true;
+                }
+            }
+        }
+        ArrayDeque<FillEntry> pit = new ArrayDeque<>();
+        while (!open.isEmpty() || !pit.isEmpty()) {
+            FillEntry entry;
+            if (!pit.isEmpty()) {
+                entry = pit.remove();
+            } else
+                entry = open.remove();
+            for (Vec2d change : neighbors) {
+                int newx = entry.getX() + (int) change.x;
+                int newy = entry.getY() + (int) change.y;
+                boolean inBounds = newx >= 0 && newy >= 0 && newx < width && newy < width;
+                if (!inBounds || closed[newx + 600*newy]) {
+                    continue;
+                }
+                double height = getFundamentalHeight(newx, newy, prekernel);
+                closed[newx + 600*newy] = true;
+                if (height < entry.getPrior()) {
+                    out[newx + width*newy] = entry.getPrior();
+                    pit.add(new FillEntry(newx, newy, entry.getPrior()));
+                } else {
+                    open.add(new FillEntry(newx, newy, height));
+                }
+            }
+        }
+    }
+
+    public double getFundamentalHeight(int x, int y, double[] image) {
+        return kernel(x, y, image) + geo(x, y, 0) * 0.5 + geo(x, y, 1) * 0.25 + gen3.base(new Vec2d(x, y)) * 0.1;
     }
 
     public double getBase(int x, int y) {
         double dx = gen3.base(new Vec2d(x, y));
         double dy = gen3.base(new Vec2d(-x, y));
         Vec2d res = gen2.base(new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom));
-        int dz = (int)(gen3.base(new Vec2d(-y/4, x/4)) + 0.75 * gen3.base(new Vec2d(-x, y+3)));
+        double dz = gen3.base(new Vec2d(-y/4, x/4)) + 0.75 * gen3.base(new Vec2d(-x, y+3));
         //int hash = highEntropyHash(Math.pow(res.x + 1, 5)/(Math.abs(res.y*res.x + res.x - res.y) + 1));
 
         double test = gen.base(new Vec2d(res.x + dx/4, res.y + dy/4).times(0.01));
         //System.out.println(Integer.remainderUnsigned(hash, 11));
         if (test >= height_cutoff) {
-            return dz * 1.3 + 2.0;
+            return dz * 1.2 + 2.0;
         } else {
-            return dz * 0.8 - 9.5;
+            return dz * 0.75 - 9.5;
         }
     }
 
@@ -119,14 +222,14 @@ public class RenderComponent extends JPanel {
         return accu/divis + 0.1;
     }
 
-    public double kernel(int x, int y, BufferedImage img) {
+    public double kernel(int x, int y, double[] img) {
         double accu = 0;
         double divis = 0;
         for (int i = -(int)(200.0/zoom); i < (int)(300.0/zoom); i++) {
             for (int j = -(int)(200.0/zoom); j < (int)(300.0/zoom); j++) {
                 double distFudge = 1/Math.sqrt(i * i + j * j + 1);
-                if (x+i >= 0 && y+j >= 0 && x+i < img.getWidth() && y+j < img.getHeight()) {
-                    double change = (double)img.getRGB(x+i,y+j)/2048.0;
+                if (x+i >= 0 && y+j >= 0 && x+i < width && y+j < width) {
+                    double change = img[x+i + 600 * (y+j)];
                     accu += change * distFudge;
                 } else {
                     accu += (getBase(x+i,y+j)) * distFudge;
