@@ -1,11 +1,19 @@
 package main;
 
-public final class Vec2d {
-    public final double x;
-    public final double y;
+public final record Vec2d(double x, double y) {
     public Vec2d(double x, double y) {
         this.x = x;
         this.y = y;
+    }
+
+    @Override
+    public double x() {
+        return x;
+    }
+
+    @Override
+    public double y() {
+        return y;
     }
 
     public double dot(Vec2d other) {

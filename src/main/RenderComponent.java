@@ -47,10 +47,10 @@ public class RenderComponent extends JPanel {
     }
 
     public Vec2d getPlateVelocity(Vec2d continent, double x, double y, int stage) {
-        return new Vec2d(gen.base(new Vec2d(continent.x * 2 + stage, continent.y * 2 + stage)),
-                gen.base(new Vec2d(continent.y * 2 + stage, -continent.x * 2 + stage))).times(2)
-                .plus(new Vec2d(gen.base(new Vec2d(x * 3 + continent.x + stage, y * 3 + continent.y + stage)),
-                        gen.base(new Vec2d(-x * 3 + continent.x + stage, y * 3 + continent.y + stage))).times(2));
+        return new Vec2d(gen.base(new Vec2d(continent.x() * 2 + stage, continent.y() * 2 + stage)),
+                gen.base(new Vec2d(continent.y() * 2 + stage, -continent.x() * 2 + stage))).times(2)
+                .plus(new Vec2d(gen.base(new Vec2d(x * 3 + continent.x() + stage, y * 3 + continent.y() + stage)),
+                        gen.base(new Vec2d(-x * 3 + continent.x() + stage, y * 3 + continent.y() + stage))).times(2));
     }
 
     public static double sigmoid(double x) {
@@ -126,8 +126,8 @@ public class RenderComponent extends JPanel {
                 if (image[x + width*y] >= ground_cut) {
                     boolean edge = false;
                     for (Vec2d change : neighbors) {
-                        int newx = x + (int) change.x;
-                        int newy = y + (int) change.y;
+                        int newx = x + (int) change.x();
+                        int newy = y + (int) change.y();
                         double height;
                         if (newx >= 0 && newy >= 0 && newx < width && newy < width) {
                             height = image[newx + width*newy];
@@ -158,8 +158,8 @@ public class RenderComponent extends JPanel {
             } else
                 entry = open.remove();
             for (Vec2d change : neighbors) {
-                int newx = entry.getX() + (int) change.x;
-                int newy = entry.getY() + (int) change.y;
+                int newx = entry.getX() + (int) change.x();
+                int newy = entry.getY() + (int) change.y();
                 boolean inBounds = newx >= 0 && newy >= 0 && newx < width && newy < width;
                 if (!inBounds || closed[newx + 600*newy]) {
                     continue;
@@ -185,9 +185,9 @@ public class RenderComponent extends JPanel {
         double dy = gen3.base(new Vec2d(-x, y));
         Vec2d res = gen2.base(new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom));
         double dz = gen3.base(new Vec2d(-y/4, x/4)) + 0.75 * gen3.base(new Vec2d(-x, y+3));
-        //int hash = highEntropyHash(Math.pow(res.x + 1, 5)/(Math.abs(res.y*res.x + res.x - res.y) + 1));
+        //int hash = highEntropyHash(Math.pow(res.x() + 1, 5)/(Math.abs(res.y()*res.x() + res.x() - res.y()) + 1));
 
-        double test = gen.base(new Vec2d(res.x + dx/4, res.y + dy/4).times(0.01));
+        double test = gen.base(new Vec2d(res.x() + dx/4, res.y() + dy/4).times(0.01));
         //System.out.println(Integer.remainderUnsigned(hash, 11));
         if (test >= height_cutoff) {
             return dz * 1.2 + 2.0;
@@ -207,7 +207,7 @@ public class RenderComponent extends JPanel {
                 double dy = gen3.base(new Vec2d(-newx, newy)) * 0.5;
                 Vec2d core = new Vec2d((newx - 300 + dx) / zoom, (newy - 300 + dy) / zoom);
                 Vec2d res = gen2.base(core);
-                Vec2d velocity = this.getPlateVelocity(res, core.x, core.y, stage);
+                Vec2d velocity = this.getPlateVelocity(res, core.x(), core.y(), stage);
 
                 accu -= velocity.dot(new Vec2d(i, j)) * 1/Math.sqrt((double)(i*i + j*j) + 1.8) + 0.13;
                 divis += 1/Math.sqrt((double)(i*i + j*j) + 1.8);
@@ -219,8 +219,8 @@ public class RenderComponent extends JPanel {
         Vec2d core = new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom);
         Vec2d res = gen2.base(core);
         Vec2d coreContinent = gen2.sample(core, 0);
-        Vec2d coreContinentVelocity = this.getPlateVelocity(res, coreContinent.x, coreContinent.y, stage);
-        double test = gen.base(new Vec2d(coreContinent.x, coreContinent.y).times(0.01));
+        Vec2d coreContinentVelocity = this.getPlateVelocity(res, coreContinent.x(), coreContinent.y(), stage);
+        double test = gen.base(new Vec2d(coreContinent.x(), coreContinent.y()).times(0.01));
         if (test >= height_cutoff) {
             // problem: how to make this dependent on the other continent's velocity without wasting time?
             double subduction = Math.max(0, gen2.edgeDir(core).dot(coreContinentVelocity) * 0.05 / zoom);

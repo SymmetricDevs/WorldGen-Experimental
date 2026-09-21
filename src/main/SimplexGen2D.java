@@ -24,8 +24,8 @@ public class SimplexGen2D implements IGenBase {
 
     public double grad(int hash, Vec2d pos) {
         int h = hash & 7;
-        double u = h<4 ? pos.x : pos.y;
-        double v = h<4 ? pos.y : pos.x;
+        double u = h<4 ? pos.x() : pos.y();
+        double v = h<4 ? pos.y() : pos.x();
         return (((h&1) == 1)? -u : u) + (((h&2) == 2)? -2.0 *v  : 2.0 * v);
     }
 
@@ -38,14 +38,14 @@ public class SimplexGen2D implements IGenBase {
     }
 
     public double base(Vec2d pos) {
-        double x = pos.x;
-        double y = pos.y;
+        double x = pos.x();
+        double y = pos.y();
         Vec2d transformed = transformCoord(new Vec2d(x, y));
 
-        double x_local = transformed.x-fast_floor(transformed.x),
-                y_local = transformed.y-fast_floor(transformed.y);
+        double x_local = transformed.x()-fast_floor(transformed.x()),
+                y_local = transformed.y()-fast_floor(transformed.y());
 
-        Vec2d home_base = new Vec2d(fast_floor(transformed.x), fast_floor(transformed.y));
+        Vec2d home_base = new Vec2d(fast_floor(transformed.x()), fast_floor(transformed.y()));
 
         Vec2d p2_1, p3_1;
         int i_1, j_1;
@@ -66,9 +66,9 @@ public class SimplexGen2D implements IGenBase {
         p2 = transformRevCoord(p2_1);
         p3 = transformRevCoord(p3_1);
 
-        int ii = fast_floor(transformed.x) & 0xff;
+        int ii = fast_floor(transformed.x()) & 0xff;
 
-        int jj = fast_floor(transformed.y) & 0xff;
+        int jj = fast_floor(transformed.y()) & 0xff;
 
         double c1 = pow(Math.max(0,0.5 - p1.distsq(pos)), 4) * grad(perm[(ii+perm[jj]) & 0xff], p1.minus(pos));
         double c2 = pow(Math.max(0,0.5 - p2.distsq(pos)), 4) * grad(perm[(ii+i_1+perm[(jj+j_1) & 0xff]) & 0xff], p2.minus(pos));
@@ -104,10 +104,10 @@ public class SimplexGen2D implements IGenBase {
     }
 
     private Vec2d transformCoord(Vec2d input) {
-        return new Vec2d(input.x + (input.x + input.y) * F,input.y + (input.x + input.y) * F);
+        return new Vec2d(input.x() + (input.x() + input.y()) * F,input.y() + (input.x() + input.y()) * F);
     }
     private Vec2d transformRevCoord(Vec2d input) {
-        return new Vec2d(input.x - (input.x + input.y) * G, input.y - (input.x + input.y) * G);
+        return new Vec2d(input.x() - (input.x() + input.y()) * G, input.y() - (input.x() + input.y()) * G);
     }
 
     private char[] getShuffle() {

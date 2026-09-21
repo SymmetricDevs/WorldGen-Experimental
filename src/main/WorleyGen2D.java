@@ -10,14 +10,14 @@ public class WorleyGen2D {
     }
 
     public Vec2d sample(Vec2d pos, int index) {
-        int hashx = Double.hashCode(pos.x * seed * 1/(Math.abs(index) + 1) + pos.y / seed) * (int)seed/2;
-        int hashy = Double.hashCode(pos.y * seed + pos.x / seed) * (int)(3 * seed + 1);
+        int hashx = Double.hashCode(pos.x() * seed * index + pos.y() / seed) * (int)seed/2;
+        int hashy = Double.hashCode(pos.y() * seed + pos.x() / seed) * (int)(3 * seed + 1);
         return new Vec2d((double)hashx/Math.cbrt(hashy * hashy * hashy + 1) % 1,
                 (double)hashy/Math.cbrt(hashx * hashx * hashx + 1) % 1).plus(pos);
     }
 
     public Vec2d base(Vec2d pos) {
-        int cellx = (int)fast_floor(pos.x), celly = (int)fast_floor(pos.y);
+        int cellx = (int)fast_floor(pos.x()), celly = (int)fast_floor(pos.y());
         double accu = Double.MAX_VALUE;
         int bestx = cellx;
         int besty = celly;
@@ -29,8 +29,8 @@ public class WorleyGen2D {
                 double distsq = Math.min(pos.distsq(res), pos.distsq(res2));
                 if (distsq < accu) {
                     accu = distsq;
-                    bestx = fast_floor(real.x);
-                    besty = fast_floor(real.y);
+                    bestx = fast_floor(real.x());
+                    besty = fast_floor(real.y());
                 }
 
             }
@@ -39,7 +39,7 @@ public class WorleyGen2D {
     }
 
     public Vec2d edgeDir(Vec2d pos) {
-        int cellx = (int)fast_floor(pos.x), celly = (int)fast_floor(pos.y);
+        int cellx = (int)fast_floor(pos.x()), celly = (int)fast_floor(pos.y());
         Vec2d accu = new Vec2d(Double.MAX_VALUE, Double.MAX_VALUE);
         Vec2d accu2 = new Vec2d(Double.MAX_VALUE, Double.MAX_VALUE);
         for (int i = -2; i < 3; i++) {
