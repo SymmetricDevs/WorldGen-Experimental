@@ -15,7 +15,7 @@ public class RenderComponent extends JPanel {
     private final double height_cutoff = 0.03;
     private final double ground_cut = 0.38;
     private static final int width = 800;
-    private final Vec2d[] neighbors = {new Vec2d(0,1), new Vec2d(0,1), new Vec2d(-1,0), new Vec2d(1, 0),
+    private final Vec2d[] neighbors = {new Vec2d(0,1), new Vec2d(0,-1), new Vec2d(-1,0), new Vec2d(1, 0),
             new Vec2d(-1, 1), new Vec2d(1, 1), new Vec2d(-1, -1), new Vec2d(1, -1)};
 
     enum DIR {
@@ -120,8 +120,9 @@ public class RenderComponent extends JPanel {
             }
         }
         double[] fillim = new double[width*width];
-        getDepressionFill(secondim, imageinit, fillim);
         double[] riverim = new double[width*width];
+        getDepressionFill(secondim, imageinit, fillim, riverim);
+
         getRivers(fillim, riverim);
         BufferedImage finalim = new BufferedImage(width, width, BufferedImage.TYPE_INT_RGB);
         for (int x = 0; x < width; x++) {
@@ -130,7 +131,7 @@ public class RenderComponent extends JPanel {
                 double fill = fillim[x + width*y] - height;
                 try {
                     if (height >= ground_cut) {
-                        if (riverim[x + y * width] >= 0.2) {
+                        if (riverim[x + y * width] >= 0.9) {
                             finalim.setRGB(x, y, new Color(255, 255, 255).getRGB());
                         }
                         else if (fill/2 <= 0.1) {
@@ -210,33 +211,23 @@ public class RenderComponent extends JPanel {
         // Go over all cells with empty direction
         PriorityQueue<FillEntry> queue = new PriorityQueue<FillEntry>(List.of(FillEntry.get(filled))
                 .stream().filter(e -> e.getPrior() >= ground_cut).toList(),
-                ((e, f) -> Double.compare(e.getPrior(), f.getPrior()))
+                ((e, f) -> -Double.compare(e.getPrior(), f.getPrior()))
         );
         while (!queue.isEmpty()) {
             FillEntry e = queue.remove();
-            if (e.getPrior() != 0) {
-                int x = e.getX();
-                int y = e.getY();
-                fill_out(x, y, tileFlows, filled, out);
-            }
-        }
-    }
-
-    private void fill_out(int x, int y, DIR[] tileFlows, double[] filled, double[] out) {
-        int i = x;
-        int j = y;
-        while (true) {
-            DIR direction = tileFlows[i + width * j];
-            if (direction == DIR.EMPTY || filled[i + width * j] <= ground_cut) {
-                return;
+            int x = e.getX();
+            int y = e.getY();
+            DIR direction = tileFlows[x + width * y];
+            if (direction == DIR.EMPTY) {
+                continue;
             }
             Vec2d delta = dirToVec(direction);
-            i += (int)delta.x();
-            j += (int)delta.y();
+            int i = x + (int)delta.x();
+            int j = y + (int)delta.y();
             if (ooB(new Vec2d(i, j))) {
-                return;
+                continue;
             }
-            out[i + width * j] += 0.1;
+            out[i + width * j] += out[x + width * y] + 0.1;
         }
     }
 
@@ -260,7 +251,7 @@ public class RenderComponent extends JPanel {
         return from_below;
     }
 
-    private void getDepressionFill(double[] image, double[] prekernel, double[] out) {
+    private void getDepressionFill(double[] image, double[] prekernel, double[] out, double[] riverim) {
         PriorityQueue<FillEntry> open = new PriorityQueue<>(Comparator.comparingDouble(FillEntry::getPrior));
         boolean[] closed = new boolean[width * width];
         for (int x = 0; x < width; x++) {
@@ -293,6 +284,8 @@ public class RenderComponent extends JPanel {
             }
         }
         ArrayDeque<FillEntry> pit = new ArrayDeque<>();
+        DIR[] tileFlows = new DIR[width * width];
+        Arrays.fill(tileFlows, DIR.EMPTY);
         while (!open.isEmpty() || !pit.isEmpty()) {
             FillEntry entry;
             if (!pit.isEmpty()) {
@@ -302,16 +295,17 @@ public class RenderComponent extends JPanel {
             for (Vec2d change : neighbors) {
                 int newx = entry.getX() + (int) change.x();
                 int newy = entry.getY() + (int) change.y();
-                boolean inBounds = newx >= 0 && newy >= 0 && newx < width && newy < width;
+                boolean inBounds = !ooB(new Vec2d(newx, newy));
                 if (!inBounds || closed[newx + width*newy]) {
                     continue;
                 }
-                double height = getFundamentalHeight(newx, newy, prekernel);
+                double height = image[newx + width * newy];
                 closed[newx + width*newy] = true;
                 if (height < entry.getPrior()) {
                     out[newx + width*newy] = entry.getPrior();
                     pit.add(new FillEntry(newx, newy, entry.getPrior()));
                 } else {
+                    out[newx + width*newy] = height;
                     open.add(new FillEntry(newx, newy, height));
                 }
             }

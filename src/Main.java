@@ -14,7 +14,7 @@ public class Main {
         Random random = new Random();
         ClassLoader loader = ClassLoader.getSystemClassLoader();
         loader.setDefaultAssertionStatus(true);
-        RenderComponent comp = new RenderComponent(123);
+        RenderComponent comp = new RenderComponent(149);
         JFrame window = new JFrame("render");
 
 
