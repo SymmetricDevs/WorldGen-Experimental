@@ -121,13 +121,13 @@ public class RenderComponent extends JPanel {
         }
         double[] fillim = new double[width*width];
         double[] riverim = new double[width*width];
-        getDepressionFill(secondim, imageinit, fillim, riverim);
+        double[] carvedim = getDepressionFill(secondim, imageinit, fillim, riverim);
 
         //getRivers(fillim, riverim);
         BufferedImage finalim = new BufferedImage(width, width, BufferedImage.TYPE_INT_RGB);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < width; y++) {
-                double height = secondim[x + width*y];
+                double height = carvedim[x + width*y];
                 double fill = fillim[x + width*y] - height;
                 try {
                     if (height >= ground_cut) {
@@ -196,7 +196,7 @@ public class RenderComponent extends JPanel {
         return vec.x() < 0 || vec.y() < 0 || vec.x() >= width || vec.y() >= width;
     }
 
-    private void getDepressionFill(double[] image, double[] prekernel, double[] out, double[] riverout) {
+    private Vec2i[] depressionPass(double[] image, double[] prekernel, double[] out, double[] riverout) {
         PriorityQueue<FillEntry> open = new PriorityQueue<>(Comparator.comparingDouble(FillEntry::getPrior));
         boolean[] closed = new boolean[width * width];
         for (int x = 0; x < width; x++) {
@@ -270,6 +270,43 @@ public class RenderComponent extends JPanel {
                 riverout[recindex] += riverout[index];
         }
 
+        return order;
+    }
+
+    private double[] getDepressionFill(double[] image, double[] prekernel, double[] out, double[] riverout) {
+        double[] imageout = image.clone();
+        double[] prekernelc = prekernel.clone();
+
+        Vec2i[] kout;
+        for (int j = 0; j < 10; j++) {
+            kout = depressionPass(imageout, prekernelc, out, riverout);
+            for (int i = 0; i < kout.length; i++) {
+                Vec2i inputter = kout[i];
+                if (inputter == null) {
+                    break;
+                }
+                int index = inputter.x() + inputter.y() * width;
+                imageout[index] -= Math.sqrt(i) * Math.pow(riverout[index], 0.5) * gradient(imageout, inputter).abs() * 0.001;
+            }
+        }
+        depressionPass(imageout, prekernelc, out, riverout);
+        return imageout;
+
+    }
+
+    public Vec2d gradient(double[] image, Vec2i loc) {
+        double accx = 0;
+        double accy = 0;
+        double count = 1;
+        for (Vec2i neighbor: neighbors) {
+            if (!ooB(neighbor.plus(loc))) {
+                Vec2i neigh = neighbor.plus(loc);
+                accx += image[neigh.x() + width * neigh.y()] * neighbor.x() / neighbor.abs();
+                accy += image[neigh.x() + width * neigh.y()] * neighbor.y() / neighbor.abs();
+                count += 1/neighbor.abs();
+            }
+        }
+        return new Vec2d(accx/count, accy/count);
     }
 
     public double getFundamentalHeight(int x, int y, double[] image) {
