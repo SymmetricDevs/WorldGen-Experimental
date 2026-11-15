@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.*;
+import java.util.List;
 
 public class RenderComponent extends JPanel {
     private SimplexGen2D gen;
@@ -13,9 +14,43 @@ public class RenderComponent extends JPanel {
     private long seed;
     private final double height_cutoff = 0.03;
     private final double ground_cut = 0.38;
-    private final int width = 600;
-    private final Vec2d[] neighbors = {new Vec2d(1,0), new Vec2d(1,1), new Vec2d(0,1), new Vec2d(0, -1),
-            new Vec2d(-1, -1), new Vec2d(-1, 0), new Vec2d(-1, 1), new Vec2d(1, -1)};
+    private static final int width = 800;
+    private final Vec2d[] neighbors = {new Vec2d(0,1), new Vec2d(0,1), new Vec2d(-1,0), new Vec2d(1, 0),
+            new Vec2d(-1, 1), new Vec2d(1, 1), new Vec2d(-1, -1), new Vec2d(1, -1)};
+
+    enum DIR {
+        UP,
+        DOWN,
+        LEFT,
+        RIGHT,
+        UPLEFT,
+        UPRIGHT,
+        DOWNLEFT,
+        DOWNRIGHT,
+        EMPTY
+    }
+
+    private DIR neighborMap(int index) {
+        return DIR.values()[index];
+    }
+
+    private Vec2d dirToVec(DIR d) {
+        return switch (d) {
+            case UP -> new Vec2d(0, 1);
+            case DOWN -> new Vec2d(0, -1);
+            case LEFT -> new Vec2d(-1, 0);
+            case RIGHT -> new Vec2d(1, 0);
+            case UPLEFT -> new Vec2d(-1, 1);
+            case UPRIGHT -> new Vec2d(1, 1);
+            case DOWNLEFT -> new Vec2d(-1, -1);
+            case DOWNRIGHT -> new Vec2d(1, -1);
+            case EMPTY -> new Vec2d(0, 0);
+        };
+    }
+
+    int[] worley1 = new int[width * width];
+    int[] worley2 = new int[width * width];
+
     public RenderComponent(long seed) {
         this.seed = seed;
         zoom = 100;
@@ -65,6 +100,18 @@ public class RenderComponent extends JPanel {
                 imageinit[x + width*y] = height;
             }
         }
+
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < width; y++) {
+                double dx = gen3.base(new Vec2d(x, y));
+                double dy = gen3.base(new Vec2d(-x, y));
+                Vec2d res = gen2.base(new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom));
+                Vec2d out = gen2.base(res);
+                worley1[x + width*y] = (int)out.x();
+                worley2[x + width*y] = (int)out.y();
+            }
+        }
+
         double[] secondim = new double[width*width];
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < width; y++) {
@@ -74,6 +121,8 @@ public class RenderComponent extends JPanel {
         }
         double[] fillim = new double[width*width];
         getDepressionFill(secondim, imageinit, fillim);
+        double[] riverim = new double[width*width];
+        getRivers(fillim, riverim);
         BufferedImage finalim = new BufferedImage(width, width, BufferedImage.TYPE_INT_RGB);
         for (int x = 0; x < width; x++) {
             for (int y = 0; y < width; y++) {
@@ -81,13 +130,18 @@ public class RenderComponent extends JPanel {
                 double fill = fillim[x + width*y] - height;
                 try {
                     if (height >= ground_cut) {
-                        if (fill <= 0.1) {
-                            //finalim.setRGB(x, y, new Color((int)(255 * sigmoid(height * 0.09 + -0.6)),
-                            //        (int)(240 * sigmoid(height * 0.065 + 1.2)),
-                            //        (int)(200 * sigmoid(height * 0.04 - 1.5))).getRGB());
-                            finalim.setRGB(x, y, new Color(0,0,((height % 4 < 0.3) ? 255 : 0)).getRGB());
+                        if (riverim[x + y * width] >= 0.2) {
+                            finalim.setRGB(x, y, new Color(255, 255, 255).getRGB());
+                        }
+                        else if (fill/2 <= 0.1) {
+                            finalim.setRGB(x, y, new Color((int)(255 * sigmoid(height * 0.09 + -0.6)),
+                                    (int)(150 * sigmoid(height * 0.065 + 1.2)),
+                                    (int)(120 * sigmoid(height * 0.04 - 1.5))).getRGB());
+                            //finalim.setRGB(x, y, new Color(0,0,((height % 4 < 0.3) ? 255 : 0)).getRGB());
                         } else {
-                            finalim.setRGB(x, y, new Color(0, 255, 255).getRGB());
+                            finalim.setRGB(x, y, new Color(0,
+                                    0,
+                                    (int)(255 - 120 * sigmoid(fill * 0.05 - 1.1))).getRGB());
                         }
                     } else {
                         finalim.setRGB(x, y, new Color(40, 130 + (int) (height * 3.0), 180 + (int) (height * 2.5)).getRGB());
@@ -100,7 +154,7 @@ public class RenderComponent extends JPanel {
         g.drawImage(finalim, 0, 0, width, width, this);
     }
 
-    public class FillEntry extends AbstractMap.SimpleEntry<AbstractMap.SimpleEntry<Integer, Integer>, Double> {
+    public static class FillEntry extends AbstractMap.SimpleEntry<AbstractMap.SimpleEntry<Integer, Integer>, Double> {
         public FillEntry(AbstractMap.SimpleEntry<Integer, Integer> key, Double value) {
             super(key, value);
         }
@@ -116,6 +170,94 @@ public class RenderComponent extends JPanel {
         public double getPrior() {
             return this.getValue();
         }
+
+        public static FillEntry[] get(double[] intro) {
+            FillEntry[] ret = new FillEntry[width * width];
+            for (int i = 0; i < width; i++) {
+                for (int j = 0; j < width; j++) {
+                    ret[i + j * width] = new FillEntry(new AbstractMap.SimpleEntry<>(i, j),
+                            intro[i + j * width]);
+                }
+            }
+            return ret;
+        }
+    }
+
+    private boolean isEdge(int x, int y) {
+        return x == 0 || y == 0 || x == (width - 1) || y == (width - 1);
+    }
+
+    private boolean ooB(Vec2d vec) {
+        return vec.x() < 0 || vec.y() < 0 || vec.x() >= width || vec.y() >= width;
+    }
+
+    private void getRivers(double[] filled, double[] out) {
+        // filled data is only used to avoid double-cutting
+        DIR[] tileFlows = new DIR[width * width];
+        Arrays.fill(tileFlows, DIR.EMPTY);
+        //double[] flux = new double[width * width];
+        Arrays.fill(out, 0);
+        for (int x = 0; x < width; x++) {
+            for (int y = 0; y < width; y++) {
+                if (isEdge(x, y) || filled[x + y * width] < ground_cut) {
+                    tileFlows[x + y * width] = DIR.EMPTY;
+                }
+                DIR from_above = getFromBelow(filled, x, y);
+                tileFlows[x + y * width] = from_above;
+            }
+        }
+
+        // Go over all cells with empty direction
+        PriorityQueue<FillEntry> queue = new PriorityQueue<FillEntry>(List.of(FillEntry.get(filled))
+                .stream().filter(e -> e.getPrior() >= ground_cut).toList(),
+                ((e, f) -> Double.compare(e.getPrior(), f.getPrior()))
+        );
+        while (!queue.isEmpty()) {
+            FillEntry e = queue.remove();
+            if (e.getPrior() != 0) {
+                int x = e.getX();
+                int y = e.getY();
+                fill_out(x, y, tileFlows, filled, out);
+            }
+        }
+    }
+
+    private void fill_out(int x, int y, DIR[] tileFlows, double[] filled, double[] out) {
+        int i = x;
+        int j = y;
+        while (true) {
+            DIR direction = tileFlows[i + width * j];
+            if (direction == DIR.EMPTY || filled[i + width * j] <= ground_cut) {
+                return;
+            }
+            Vec2d delta = dirToVec(direction);
+            i += (int)delta.x();
+            j += (int)delta.y();
+            if (ooB(new Vec2d(i, j))) {
+                return;
+            }
+            out[i + width * j] += 0.1;
+        }
+    }
+
+    private DIR getFromBelow(double[] filled, int x, int y) {
+        DIR from_below = DIR.EMPTY;
+        double grad = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < neighbors.length; i++) {
+            Vec2d delta = neighbors[i];
+            if (ooB(delta.plus(new Vec2d(x, y)))) {
+                continue;
+            }
+            double dif = (filled[x + (int)(delta.x()) + width * (y + (int)delta.y())] - filled[x + width * y])
+                    /neighbors[i].abs();
+            if (dif < grad) {
+                if (dif < 0) {
+                    from_below = neighborMap(i);
+                }
+                grad = dif;
+            }
+        }
+        return from_below;
     }
 
     private void getDepressionFill(double[] image, double[] prekernel, double[] out) {
@@ -140,7 +282,7 @@ public class RenderComponent extends JPanel {
                         }
                     }
                     if (edge) {
-                        open.add(new FillEntry(x, y, image[x + width*y]));
+                        open.add(new FillEntry(x, y, image[x + width * y]));
                         closed[x + width*y] = true;
                     } else {
                         closed[x + width*y] = false;
@@ -161,11 +303,11 @@ public class RenderComponent extends JPanel {
                 int newx = entry.getX() + (int) change.x();
                 int newy = entry.getY() + (int) change.y();
                 boolean inBounds = newx >= 0 && newy >= 0 && newx < width && newy < width;
-                if (!inBounds || closed[newx + 600*newy]) {
+                if (!inBounds || closed[newx + width*newy]) {
                     continue;
                 }
                 double height = getFundamentalHeight(newx, newy, prekernel);
-                closed[newx + 600*newy] = true;
+                closed[newx + width*newy] = true;
                 if (height < entry.getPrior()) {
                     out[newx + width*newy] = entry.getPrior();
                     pit.add(new FillEntry(newx, newy, entry.getPrior()));
@@ -185,10 +327,8 @@ public class RenderComponent extends JPanel {
         double dy = gen3.base(new Vec2d(-x, y));
         Vec2d res = gen2.base(new Vec2d((x - 300 + dx) / zoom, (y - 300 + dy) / zoom));
         double dz = gen3.base(new Vec2d(-y/4, x/4)) + 0.75 * gen3.base(new Vec2d(-x, y+3));
-        //int hash = highEntropyHash(Math.pow(res.x() + 1, 5)/(Math.abs(res.y()*res.x() + res.x() - res.y()) + 1));
 
         double test = gen.base(new Vec2d(res.x() + dx/4, res.y() + dy/4).times(0.01));
-        //System.out.println(Integer.remainderUnsigned(hash, 11));
         if (test >= height_cutoff) {
             return dz * 1.2 + 2.0;
         } else {
@@ -236,7 +376,7 @@ public class RenderComponent extends JPanel {
             for (int j = -(int)(200.0/zoom); j < (int)(300.0/zoom); j++) {
                 double distFudge = 1/Math.sqrt(i * i + j * j + 1);
                 if (x+i >= 0 && y+j >= 0 && x+i < width && y+j < width) {
-                    double change = img[x+i + 600 * (y+j)];
+                    double change = img[x+i + width * (y+j)];
                     accu += change * distFudge;
                 } else {
                     accu += (getBase(x+i,y+j)) * distFudge;

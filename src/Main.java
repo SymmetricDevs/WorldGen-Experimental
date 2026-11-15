@@ -14,7 +14,7 @@ public class Main {
         Random random = new Random();
         ClassLoader loader = ClassLoader.getSystemClassLoader();
         loader.setDefaultAssertionStatus(true);
-        RenderComponent comp = new RenderComponent(random.nextLong());
+        RenderComponent comp = new RenderComponent(123);
         JFrame window = new JFrame("render");
 
 
@@ -22,7 +22,7 @@ public class Main {
         String emptyLabel = "render";
         window.getContentPane().add(comp, BorderLayout.CENTER);
 
-        window.setSize(600, 600);
+        window.setSize(800, 800);
 
         window.setVisible(true);
 
